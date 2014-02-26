@@ -1,4 +1,4 @@
-/* An expandable hash tables datatype.  
+/* An expandable hash tables datatype.
    Copyright (C) 1999, 2000 Free Software Foundation, Inc.
    Contributed by Vladimir Makarov (vmakarov@cygnus.com).
 
@@ -54,7 +54,7 @@ typedef int (*htab_eq) (const void *, const void *);
 /* Cleanup function called whenever a live element is removed from
    the hash table.  */
 typedef void (*htab_del) (void *);
-  
+
 /* Function called by htab_traverse for each live element.  The first
    arg is the slot of the element (which can be passed to htab_clear_slot
    if desired), the second arg is the auxiliary pointer handed to
@@ -67,40 +67,40 @@ typedef int (*htab_trav) (void **, void *);
    functions mentioned below. */
 
 struct htab
-{
-  /* Pointer to hash function.  */
-  htab_hash hash_f;
+    {
+    /* Pointer to hash function.  */
+    htab_hash hash_f;
 
-  /* Pointer to comparison function.  */
-  htab_eq eq_f;
+    /* Pointer to comparison function.  */
+    htab_eq eq_f;
 
-  /* Pointer to cleanup function.  */
-  htab_del del_f;
+    /* Pointer to cleanup function.  */
+    htab_del del_f;
 
-  /* Table itself.  */
-  void **entries;
+    /* Table itself.  */
+    void **entries;
 
-  /* Current size (in entries) of the hash table */
-  size_t size;
+    /* Current size (in entries) of the hash table */
+    size_t size;
 
-  /* Current number of elements including also deleted elements */
-  size_t n_elements;
+    /* Current number of elements including also deleted elements */
+    size_t n_elements;
 
-  /* Current number of deleted elements in the table */
-  size_t n_deleted;
+    /* Current number of deleted elements in the table */
+    size_t n_deleted;
 
-  /* The following member is used for debugging. Its value is number
-     of all calls of `htab_find_slot' for the hash table. */
-  unsigned int searches;
+    /* The following member is used for debugging. Its value is number
+       of all calls of `htab_find_slot' for the hash table. */
+    unsigned int searches;
 
-  /* The following member is used for debugging.  Its value is number
-     of collisions fixed for time of work with the hash table. */
-  unsigned int collisions;
+    /* The following member is used for debugging.  Its value is number
+       of collisions fixed for time of work with the hash table. */
+    unsigned int collisions;
 
-  /* This is non-zero if we are allowed to return NULL for function calls
-     that allocate memory.  */
-  int return_allocation_failure;
-};
+    /* This is non-zero if we are allowed to return NULL for function calls
+       that allocate memory.  */
+    int return_allocation_failure;
+    };
 
 typedef struct htab *htab_t;
 
@@ -120,7 +120,7 @@ extern void    *htab_find	(htab_t, const void *);
 extern void    **htab_find_slot	(htab_t, const void *, enum insert_option);
 extern void    *htab_find_with_hash (htab_t, const void *, hashval_t);
 extern void    **htab_find_slot_with_hash (htab_t, const void *, hashval_t,
-					  enum insert_option);
+        enum insert_option);
 extern void	htab_clear_slot	(htab_t, void **);
 extern void	htab_remove_elt	(htab_t, void *);
 
@@ -137,7 +137,7 @@ extern htab_hash htab_hash_pointer;
 extern htab_eq htab_eq_pointer;
 
 #ifdef __cplusplus
-}
+    }
 #endif /* __cplusplus */
 
 #endif /* __HASHTAB_H */
