@@ -983,10 +983,20 @@ edit_dwarf2 (DSO *dso)
         }
     ptr_size = 0;
 
+    /* Record .debug_* sections into debug_sections[] array */
+    
     for (i = 1; i < dso->ehdr.e_shnum; ++i)
         if (! (dso->shdr[i].sh_flags & (SHF_ALLOC | SHF_WRITE | SHF_EXECINSTR))
                 && dso->shdr[i].sh_size)
             {
+            /* 
+             * .debug_* sections do not have the following features:
+             *
+             * SHF.ALLOC - Section occupies memory during execution 
+             * SHF.WRITE - Section whose contents should be writable in execution
+             * SHF.EXECINSTR - Section contains executable machine instructions
+             */
+             
             const char *name = strptr (dso, dso->ehdr.e_shstrndx,
                                        dso->shdr[i].sh_name);
 
@@ -1021,11 +1031,11 @@ edit_dwarf2 (DSO *dso)
                            dso->filename, name);
                     }
                 }
-            else if (dso->ehdr.e_type == ET_REL
-                     && ((dso->shdr[i].sh_type == SHT_REL
+            else if (dso->ehdr.e_type == ET_REL /* Relocatable file */
+                     && ((dso->shdr[i].sh_type == SHT_REL /* Relocation entries without explicit addends */
                           && strncmp (name, ".rel.debug_",
                                       sizeof (".rel.debug_") - 1) == 0)
-                         || (dso->shdr[i].sh_type == SHT_RELA
+                         || (dso->shdr[i].sh_type == SHT_RELA /* Relocation entries with explicit addends */
                              && strncmp (name, ".rela.debug_",
                                          sizeof (".rela.debug_") - 1) == 0)))
                 {
@@ -1035,11 +1045,16 @@ edit_dwarf2 (DSO *dso)
                                 debug_sections[j].name) == 0)
                         {
                         debug_sections[j].relsec = i;
+                        
+                        printf("Relocation section %d name %s\n", i, name);
+                        
                         break;
                         }
                 }
             }
 
+    /* Get buffer reading functions according to endian mode */
+    
     if (dso->ehdr.e_ident[EI_DATA] == ELFDATA2LSB)
         {
         do_read_16 = buf_read_ule16;
@@ -1058,6 +1073,8 @@ edit_dwarf2 (DSO *dso)
         return 1;
         }
 
+    /* Edit .debug_info section */
+    
     if (debug_sections[DEBUG_INFO].data != NULL)
         {
         unsigned char *ptr, *endcu, *endsec;
@@ -1067,6 +1084,8 @@ edit_dwarf2 (DSO *dso)
         int phase;
         REL *relbuf = NULL;
 
+        /* Handle Relocation entries */
+        
         if (debug_sections[DEBUG_INFO].relsec)
             {
             int ndx, maxndx;
@@ -1176,8 +1195,13 @@ fail:
             ptr = debug_sections[DEBUG_INFO].data;
             relptr = relbuf;
             endsec = ptr + debug_sections[DEBUG_INFO].size;
+
+            /* Parse the .debug_info data buffer */
+            
             while (ptr < endsec)
                 {
+                /* The .debug_info should be at least 11 bytes */
+                
                 if (ptr + 11 > endsec)
                     {
                     error (0, 0, "%s: .debug_info CU header too small",
@@ -1185,8 +1209,8 @@ fail:
                     return 1;
                     }
 
-                endcu = ptr + 4;
-                endcu += read_32 (ptr);
+                endcu = ptr + 4; 
+                endcu += read_32 (ptr); /* Length - 32 bits */
                 if (endcu == ptr + 0xffffffff)
                     {
                     error (0, 0, "%s: 64-bit DWARF not supported", dso->filename);
@@ -1199,7 +1223,7 @@ fail:
                     return 1;
                     }
 
-                cu_version = read_16 (ptr);
+                cu_version = read_16 (ptr); /* Version - 16 bits */
                 if (cu_version != 2 && cu_version != 3 && cu_version != 4)
                     {
                     error (0, 0, "%s: DWARF version %d unhandled", dso->filename,
@@ -1207,7 +1231,7 @@ fail:
                     return 1;
                     }
 
-                value = read_32_relocated (ptr);
+                value = read_32_relocated (ptr); /* Abbrev Offset - 32 bits */
                 if (value >= debug_sections[DEBUG_ABBREV].size)
                     {
                     if (debug_sections[DEBUG_ABBREV].data == NULL)
@@ -1220,7 +1244,7 @@ fail:
 
                 if (ptr_size == 0)
                     {
-                    ptr_size = read_1 (ptr);
+                    ptr_size = read_1 (ptr); /* Pointer Size - 8 bits */
                     if (ptr_size != 4 && ptr_size != 8)
                         {
                         error (0, 0, "%s: Invalid DWARF pointer size %d",
@@ -1228,13 +1252,15 @@ fail:
                         return 1;
                         }
                     }
-                else if (read_1 (ptr) != ptr_size)
+                else if (read_1 (ptr) != ptr_size) /* Pointer Size - 8 bits */
                     {
                     error (0, 0, "%s: DWARF pointer size differs between CUs",
                            dso->filename);
                     return 1;
                     }
-
+                
+                /* Read from .debug_abbrev section at Abbrev Offset */
+                
                 abbrev = read_abbrev (dso,
                                       debug_sections[DEBUG_ABBREV].data + value);
                 if (abbrev == NULL)
