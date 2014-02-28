@@ -124,7 +124,7 @@ strptr (DSO *dso, int sec, off_t offset)
     if (offset >= 0 && (GElf_Addr) offset < dso->shdr[sec].sh_size)
         {
         data = NULL;
-        while ((data = elf_rawdata (scn, data)) != NULL)
+        while ((data = elf_getdata (scn, data)) != NULL)
             {
             if (data->d_buf
                     && offset >= data->d_off
@@ -1071,9 +1071,9 @@ edit_dwarf2 (DSO *dso)
                             }
 
                         scn = dso->scn[i];
-                        data = elf_rawdata (scn, NULL);
+                        data = elf_getdata (scn, NULL);
                         assert (data != NULL && data->d_buf != NULL);
-                        assert (elf_rawdata (scn, data) == NULL);
+                        assert (elf_getdata (scn, data) == NULL);
                         assert (data->d_off == 0);
                         assert (data->d_size == dso->shdr[i].sh_size);
                         debug_sections[j].data = data->d_buf;
@@ -1365,7 +1365,7 @@ static struct poptOption optionsTable[] =
         "directory to rewrite base-dir into", NULL
         },
         {
-        "list-file",  'l', POPT_ARG_STRING, &list_file, 0,
+        "list-file", 'l', POPT_ARG_STRING, &list_file, 0,
         "file where to put list of source and header file names", NULL
         },
         {
@@ -1498,6 +1498,7 @@ main (int argc, char *argv[])
         }
 
     /* Make sure there are trailing slashes in dirs */
+    
     if (base_dir != NULL && base_dir[strlen (base_dir)-1] != '/')
         {
         p = malloc (strlen (base_dir) + 2);
@@ -1506,6 +1507,7 @@ main (int argc, char *argv[])
         free (base_dir);
         base_dir = p;
         }
+    
     if (dest_dir != NULL && dest_dir[strlen (dest_dir)-1] != '/')
         {
         p = malloc (strlen (dest_dir) + 2);
@@ -1535,6 +1537,7 @@ main (int argc, char *argv[])
         }
 
     /* Make sure we can read and write */
+    
     chmod (file, stat_buf.st_mode | S_IRUSR | S_IWUSR);
 
     fd = open (file, O_RDWR);
@@ -1552,7 +1555,9 @@ main (int argc, char *argv[])
         {
         const char *name;
         name = strptr (dso, dso->ehdr.e_shstrndx, dso->shdr[i].sh_name);
+        
         printf ("sh:%d, sh_type: %d, sh_name: %s\n", i, dso->shdr[i].sh_type, name);
+        
         switch (dso->shdr[i].sh_type)
             {
             case SHT_PROGBITS:
@@ -1578,11 +1583,13 @@ main (int argc, char *argv[])
         fprintf (stderr, "Failed to write file: %s\n", elf_errmsg (elf_errno()));
         exit (1);
         }
+    
     if (elf_end (dso->elf) < 0)
         {
         fprintf (stderr, "elf_end failed: %s\n", elf_errmsg (elf_errno()));
         exit (1);
         }
+    
     close (fd);
 
     /* Restore old access rights */
