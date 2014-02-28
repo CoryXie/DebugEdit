@@ -775,8 +775,12 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
                         memcpy (ptr, dest_dir, dest_len);
                         if (dest_len < base_len)
                             {
-                            memset(ptr + dest_len, '/',
-                                   base_len - dest_len);
+                            if (win_path)
+                                memset(ptr + dest_len, '\\',
+                                       base_len - dest_len);
+                            else
+                                memset(ptr + dest_len, '/',
+                                       base_len - dest_len);
 
                             }
                         dirty_section (DEBUG_INFO);
@@ -890,8 +894,12 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
                         {
                         if (dest_len < base_len)
                             {
-                            memset(name + dest_len, '/',
-                                   base_len - dest_len);
+                            if (win_path)
+                                memset(name + dest_len, '\\',
+                                       base_len - dest_len);
+                            else
+                                memset(name + dest_len, '/',
+                                       base_len - dest_len);
                             }
                         
                         dirty_section (DEBUG_INFO);
@@ -1512,7 +1520,10 @@ main (int argc, char *argv[])
         {
         p = malloc (strlen (dest_dir) + 2);
         strcpy (p, dest_dir);
-        strcat (p, "/");
+        if (win_path)
+            strcat (p, "\\");
+        else
+            strcat (p, "/");
         free (dest_dir);
         dest_dir = p;
         }
