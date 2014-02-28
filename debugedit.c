@@ -761,11 +761,15 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
                     {
                     free (comp_dir);
                     comp_dir = strdup ((char *)ptr);
-                    printf("====comp_dir %s\n", comp_dir);
+                    
+                    printf("####1comp_dir %s\n", comp_dir);
+                    
                     if (phase == 1 && dest_dir && has_prefix ((char *)ptr, base_dir))
                         {
                         base_len = strlen (base_dir);
                         dest_len = strlen (dest_dir);
+                        
+                        printf("####1updating base from %s to %s\n", base_dir, dest_dir);
 
                         memcpy (ptr, dest_dir, dest_len);
                         if (dest_len < base_len)
@@ -788,10 +792,14 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
                     free (comp_dir);
                     comp_dir = strdup (dir);
 
+                    printf("####2comp_dir %s\n", comp_dir);
+
                     if (phase == 1 && dest_dir && has_prefix (dir, base_dir))
                         {
                         base_len = strlen (base_dir);
                         dest_len = strlen (dest_dir);
+
+                        printf("####2updating base from %s to %s\n", base_dir, dest_dir);
 
                         memcpy (dir, dest_dir, dest_len);
                         if (dest_len < base_len)
@@ -805,21 +813,49 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
                 }
             else if ((t->tag == DW_TAG_compile_unit
                       || t->tag == DW_TAG_partial_unit)
-                     && t->attr[i].attr == DW_AT_name
-                     && form == DW_FORM_strp
-                     && debug_sections[DEBUG_STR].data)
+                     && t->attr[i].attr == DW_AT_name)
                 {
                 char *name;
+                
+                if (form == DW_FORM_strp && debug_sections[DEBUG_STR].data)
+                    {
+                    name = (char *) debug_sections[DEBUG_STR].data
+                           + do_read_32_relocated (ptr);
+                    }
+                else if (form == DW_FORM_string && debug_sections[DEBUG_INFO].data)
+                    {
+                    name = (char *)(ptr);
+                    }
 
-                name = (char *) debug_sections[DEBUG_STR].data
-                       + do_read_32_relocated (ptr);
-                       
                 printf("====name %s\n", name);
                 
+                /* 
+                 * If the compile unit has full path from root '/',
+                 * and the compilation directory is still null,
+                 * then we construct a compilation directory string.
+                 */
+                 
                 if (*name == '/' && comp_dir == NULL)
                     {
+                    /* 
+                     * The strrchr() function shall locate the last 
+                     * occurrence of c (converted to a char) in the 
+                     * string pointed to by s. The terminating null 
+                     * byte is considered to be part of the string.
+                     *
+                     * Upon successful completion, strrchr() shall 
+                     * return a pointer to the byte or a null pointer
+                     * if c does not occur in the string.
+                     */
+                     
                     char *enddir = strrchr (name, '/');
-
+                    
+                    /* 
+                     * The compilation directory is constructed by 
+                     * removing the file name from the compile unit
+                     * name attribute.
+                     */
+                     
                     if (enddir != name)
                         {
                         comp_dir = malloc (enddir - name + 1);
@@ -829,20 +865,38 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
                     else
                         comp_dir = strdup ("/");
                     }
-
+                
                 if (phase == 1 && dest_dir && has_prefix (name, base_dir))
                     {
                     base_len = strlen (base_dir);
                     dest_len = strlen (dest_dir);
-
+                    
+                    printf("====updating base from %s to %s\n", base_dir, dest_dir);
+                    
                     memcpy (name, dest_dir, dest_len);
-                    if (dest_len < base_len)
+                    
+                    if (form == DW_FORM_strp)
                         {
-                        memmove (name + dest_len, name + base_len,
-                                 strlen (name + base_len) + 1);
+                        if (dest_len < base_len)
+                            {
+                            memmove (name + dest_len, name + base_len,
+                                     strlen (name + base_len) + 1);
+                            }
+
+                        dirty_section (DEBUG_STR);
                         }
-                    dirty_section (DEBUG_STR);
+                    else 
+                        {
+                        if (dest_len < base_len)
+                            {
+                            memset(name + dest_len, '/',
+                                   base_len - dest_len);
+                            }
+                        
+                        dirty_section (DEBUG_INFO);
+                        }
                     }
+                    
                 }
 
             switch (form)
@@ -1195,6 +1249,8 @@ fail:
 
         for (phase = 0; phase < 2; phase++)
             {
+            printf("@@@###@@@phase %d@@@###@@@\n", phase);
+            
             ptr = debug_sections[DEBUG_INFO].data;
             relptr = relbuf;
             endsec = ptr + debug_sections[DEBUG_INFO].size;
@@ -1495,12 +1551,14 @@ main (int argc, char *argv[])
         switch (dso->shdr[i].sh_type)
             {
             case SHT_PROGBITS:
+                
                 /* TODO: Handle stabs */
                 if (strcmp (name, ".stab") == 0)
                     {
                     fprintf (stderr, "Stabs debuginfo not supported: %s\n", file);
                     break;
                     }
+                
                 if (strcmp (name, ".debug_info") == 0)
                     edit_dwarf2 (dso);
 
