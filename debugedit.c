@@ -223,6 +223,8 @@ static struct
 #define DEBUG_TYPES    11
 #define DEBUG_MACRO    12
 #define DEBUG_GDB_SCRIPT    13
+#define DEBUG_SYMTAB    14
+
         { ".debug_info", NULL, NULL, 0, 0, 0 },
         { ".debug_abbrev", NULL, NULL, 0, 0, 0 },
         { ".debug_line", NULL, NULL, 0, 0, 0 },
@@ -237,6 +239,7 @@ static struct
         { ".debug_types", NULL, NULL, 0, 0, 0 },
         { ".debug_macro", NULL, NULL, 0, 0, 0 },
         { ".debug_gdb_scripts", NULL, NULL, 0, 0, 0 },
+        { ".symtab", NULL, NULL, 0, 0, 0 },
         { NULL, NULL, NULL, 0, 0, 0 }
     };
 
@@ -467,6 +470,16 @@ dirty_section (unsigned int sec)
     dirty_elf = 1;
     }
 
+void make_win_path(char * path)
+    {
+    int k = 0;
+    while (path[k] != '\0')
+        {
+        if (path[k] == '/') path[k] = '\\';
+        k++;
+        }
+    }
+
 static int
 edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
     {
@@ -488,8 +501,15 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
 
     ptr += off;
 
+    /* 
+     * unit_length 
+     * 
+     * The size in bytes of the line number information for this 
+     * compilation unit, not including the unit_length field itself. 
+     */
+
     endcu = ptr + 4;
-    endcu += read_32 (ptr);
+    endcu += read_32 (ptr); 
     if (endcu == ptr + 0xffffffff)
         {
         error (0, 0, "%s: 64-bit DWARF not supported", dso->filename);
@@ -502,7 +522,14 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
                dso->filename);
         return 1;
         }
-
+    
+    /*
+     * version
+     *
+     * A version number. This number is specific to the line number 
+     * information and is independent of the DWARF version number.
+     */
+     
     value = read_16 (ptr);
     if (value != 2 && value != 3 && value != 4)
         {
@@ -510,7 +537,17 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
                value);
         return 1;
         }
-
+    
+    /* 
+     * header_length
+     *
+     * The number of bytes following the header_length field to the 
+     * beginning of the first byte of the line number program itself. 
+     * In the 32-bit DWARF format, this is a 4-byte unsigned length; 
+     * in the 64-bit DWARF format, this field is an 8-byte unsigned 
+     * length (see Section 7.4).
+     */
+     
     endprol = ptr + 4;
     endprol += read_32 (ptr);
     if (endprol > endcu)
@@ -523,6 +560,15 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
     opcode_base = ptr[4 + (value >= 4)];
     ptr = dir = ptr + 4 + (value >= 4) + opcode_base;
 
+    /*
+     * include_directories (sequence of path names)
+     *
+     * Entries in this sequence describe each path that was searched 
+     * for included source files in this compilation.
+     *
+     * The last entry is followed by a single null byte.
+     */
+     
     /* dir table: */
     value = 1;
     while (*ptr != 0)
@@ -566,6 +612,7 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
             error (0, ENOMEM, "%s: Reading file table", dso->filename);
             return 1;
             }
+        
         if (*file == '/')
             {
             memcpy (s, file, file_len + 1);
@@ -591,7 +638,11 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
             p[dir_len] = '/';
             memcpy (p + dir_len + 1, file, file_len + 1);
             }
+        
+        printf("@@@@linedirt[%d] %s\n", value, dirt[value]);
+        
         canonicalize_path (s, s);
+                
         if (list_file_fd != -1)
             {
             char *p = NULL;
@@ -616,6 +667,9 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
                 }
             }
 
+        if (win_path)
+            make_win_path(s);
+
         free (s);
 
         read_uleb128 (ptr);
@@ -632,6 +686,7 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
 
         if (dest_len == base_len)
             abs_file_cnt = 0;
+        
         if (abs_file_cnt)
             {
             srcptr = buf = malloc (ptr - dir);
@@ -640,12 +695,15 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
             }
         else
             ptr = srcptr = dir;
+        
         while (*srcptr != 0)
             {
             size_t len = strlen ((char *)srcptr) + 1;
             const unsigned char *readptr = srcptr;
 
             char *orig = strdup ((const char *) srcptr);
+            
+            printf("####linesrcptr %s\n", srcptr);
 
             if (*srcptr == '/' && has_prefix ((char *)srcptr, base_dir))
                 {
@@ -655,10 +713,16 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
                 ptr += dest_len;
                 readptr += base_len;
                 }
+            
             srcptr += len;
 
             shrank += srcptr - readptr;
+            
             canonicalize_path ((char *)readptr, (char *)ptr);
+
+            if (win_path)
+                make_win_path((char *)ptr);
+            
             len = strlen ((char *)ptr) + 1;
             shrank -= len;
             ptr += len;
@@ -698,6 +762,8 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
             {
             size_t len = strlen ((char *)srcptr) + 1;
 
+            printf("@@@@line srcptr %s\n", srcptr);
+            
             if (*srcptr == '/' && has_prefix ((char *)srcptr, base_dir))
                 {
                 memcpy (ptr, dest_dir, dest_len);
@@ -711,17 +777,22 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
                 }
             else if (ptr != srcptr)
                 memmove (ptr, srcptr, len);
+            
             srcptr += len;
             ptr += len;
             dir = srcptr;
+            
             read_uleb128 (srcptr);
             read_uleb128 (srcptr);
             read_uleb128 (srcptr);
+            
             if (ptr != dir)
                 memmove (ptr, dir, srcptr - dir);
             ptr += srcptr - dir;
             }
+        
         *ptr = '\0';
+        
         free (buf);
         }
     return 0;
@@ -904,6 +975,10 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
                         
                         dirty_section (DEBUG_INFO);
                         }
+
+                    if (win_path)
+                        make_win_path((char *)name);
+                   
                     }
                     
                 }
@@ -1033,6 +1108,57 @@ rel_cmp (const void *a, const void *b)
     return 0;
     }
 
+static void
+edit_symtab (DSO *dso, Elf_Data *data)
+    {
+    GElf_Sym sym;
+    GElf_Shdr shdr;
+    unsigned long stridx = -1;
+    int i;
+    char *s;
+    int sec = debug_sections[DEBUG_SYMTAB].sec;
+    Elf_Data *strtab_data;
+    gelf_getshdr(dso->scn[sec], &shdr);
+
+    stridx = shdr.sh_link;
+
+    strtab_data = elf_getdata(dso->scn[stridx], NULL);
+    
+    i = 0;
+    while (gelf_getsym(data, i++, &sym) != NULL) 
+        {
+        s = elf_strptr(dso->elf, stridx, sym.st_name);
+
+        if (GELF_ST_TYPE(sym.st_info) == STT_FILE)
+            {
+            printf("file %s\n", s);
+            
+            if (dest_dir && has_prefix (s, base_dir))
+                {
+                int base_len = strlen (base_dir);
+                int dest_len = strlen (dest_dir);
+            
+                printf("!!!!updating symbol file base from %s to %s\n", base_dir, dest_dir);
+            
+                memcpy (s, dest_dir, dest_len);
+                if (dest_len < base_len)
+                    {
+                    memmove (s + dest_len, s + base_len,
+                             strlen (s + base_len) + 1);
+                    }
+
+                make_win_path(s);
+                
+                elf_flagdata (strtab_data, ELF_C_SET, ELF_F_DIRTY);
+                }
+            }
+        else
+            {
+            printf("symbol %s\n", s);
+            }
+        }
+    }
+
 static int
 edit_dwarf2 (DSO *dso)
     {
@@ -1116,6 +1242,18 @@ edit_dwarf2 (DSO *dso)
                         
                         break;
                         }
+                }
+            else if (strncmp (name, ".symtab", sizeof (".symtab") - 1) == 0)
+                {
+                printf("########.symtab sec %d\n", i);
+                scn = dso->scn[i];
+                data = elf_getdata (scn, NULL);
+                debug_sections[DEBUG_SYMTAB].data = data->d_buf;
+                debug_sections[DEBUG_SYMTAB].elf_data = data;
+                debug_sections[DEBUG_SYMTAB].size = data->d_size;
+                debug_sections[DEBUG_SYMTAB].sec = i;
+
+                edit_symtab(dso, data);
                 }
             }
 
