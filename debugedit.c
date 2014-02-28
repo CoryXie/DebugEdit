@@ -48,6 +48,7 @@
 char *base_dir = NULL;
 char *dest_dir = NULL;
 char *list_file = NULL;
+int win_path = 0;
 int list_file_fd = -1;
 
 typedef struct
@@ -1366,6 +1367,10 @@ static struct poptOption optionsTable[] =
         {
         "list-file",  'l', POPT_ARG_STRING, &list_file, 0,
         "file where to put list of source and header file names", NULL
+        },
+        {
+        "win-path",  'w', POPT_ARG_NONE, &win_path, 0,
+        "change the path delimiter to be Windows compatible", NULL
         },
     POPT_AUTOHELP
         { NULL, 0, 0, NULL, 0, NULL, NULL }
