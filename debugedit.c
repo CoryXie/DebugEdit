@@ -66,20 +66,20 @@ typedef struct
     uint32_t addend;
     } REL;
 
-#define read_uleb128(ptr) ({		\
-  unsigned int ret = 0;			\
-  unsigned int c;			\
-  int shift = 0;			\
-  do					\
-    {					\
-      c = *ptr++;			\
-      ret |= (c & 0x7f) << shift;	\
-      shift += 7;			\
-    } while (c & 0x80);			\
-					\
-  if (shift >= 35)			\
-    ret = UINT_MAX;			\
-  ret;					\
+#define read_uleb128(ptr) ({        \
+  unsigned int ret = 0;            \
+  unsigned int c;            \
+  int shift = 0;            \
+  do                    \
+    {                    \
+      c = *ptr++;            \
+      ret |= (c & 0x7f) << shift;    \
+      shift += 7;            \
+    } while (c & 0x80);            \
+                    \
+  if (shift >= 35)            \
+    ret = UINT_MAX;            \
+  ret;                    \
 })
 
 static uint16_t (*do_read_16) (unsigned char *ptr);
@@ -138,42 +138,42 @@ strptr (DSO *dso, int sec, off_t offset)
 
 #define read_1(ptr) *ptr++
 
-#define read_16(ptr) ({					\
-  uint16_t ret = do_read_16 (ptr);			\
-  ptr += 2;						\
-  ret;							\
+#define read_16(ptr) ({                    \
+  uint16_t ret = do_read_16 (ptr);            \
+  ptr += 2;                        \
+  ret;                            \
 })
 
-#define read_32(ptr) ({					\
-  uint32_t ret = do_read_32 (ptr);			\
-  ptr += 4;						\
-  ret;							\
+#define read_32(ptr) ({                    \
+  uint32_t ret = do_read_32 (ptr);            \
+  ptr += 4;                        \
+  ret;                            \
 })
 
 REL *relptr, *relend;
 int reltype;
 
-#define do_read_32_relocated(ptr) ({			\
-  uint32_t dret = do_read_32 (ptr);			\
-  if (relptr)						\
-    {							\
-      while (relptr < relend && relptr->ptr < ptr)	\
-	++relptr;					\
-      if (relptr < relend && relptr->ptr == ptr)	\
-	{						\
-	  if (reltype == SHT_REL)			\
-	    dret += relptr->addend;			\
-	  else						\
-	    dret = relptr->addend;			\
-	}						\
-    }							\
-  dret;							\
+#define do_read_32_relocated(ptr) ({            \
+  uint32_t dret = do_read_32 (ptr);            \
+  if (relptr)                        \
+    {                            \
+      while (relptr < relend && relptr->ptr < ptr)    \
+    ++relptr;                    \
+      if (relptr < relend && relptr->ptr == ptr)    \
+    {                        \
+      if (reltype == SHT_REL)            \
+        dret += relptr->addend;            \
+      else                        \
+        dret = relptr->addend;            \
+    }                        \
+    }                            \
+  dret;                            \
 })
 
-#define read_32_relocated(ptr) ({			\
-  uint32_t ret = do_read_32_relocated (ptr);		\
-  ptr += 4;						\
-  ret;							\
+#define read_32_relocated(ptr) ({            \
+  uint32_t ret = do_read_32_relocated (ptr);        \
+  ptr += 4;                        \
+  ret;                            \
 })
 
 static void
@@ -208,20 +208,20 @@ static struct
     int sec, relsec;
     } debug_sections[] =
     {
-#define DEBUG_INFO	0
-#define DEBUG_ABBREV	1
-#define DEBUG_LINE	2
-#define DEBUG_ARANGES	3
-#define DEBUG_PUBNAMES	4
-#define DEBUG_PUBTYPES	5
-#define DEBUG_MACINFO	6
-#define DEBUG_LOC	7
-#define DEBUG_STR	8
-#define DEBUG_FRAME	9
-#define DEBUG_RANGES	10
-#define DEBUG_TYPES	11
-#define DEBUG_MACRO	12
-#define DEBUG_GDB_SCRIPT	13
+#define DEBUG_INFO    0
+#define DEBUG_ABBREV    1
+#define DEBUG_LINE    2
+#define DEBUG_ARANGES    3
+#define DEBUG_PUBNAMES    4
+#define DEBUG_PUBTYPES    5
+#define DEBUG_MACINFO    6
+#define DEBUG_LOC    7
+#define DEBUG_STR    8
+#define DEBUG_FRAME    9
+#define DEBUG_RANGES    10
+#define DEBUG_TYPES    11
+#define DEBUG_MACRO    12
+#define DEBUG_GDB_SCRIPT    13
         { ".debug_info", NULL, NULL, 0, 0, 0 },
         { ".debug_abbrev", NULL, NULL, 0, 0, 0 },
         { ".debug_line", NULL, NULL, 0, 0, 0 },
@@ -761,7 +761,7 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
                     {
                     free (comp_dir);
                     comp_dir = strdup ((char *)ptr);
-
+                    printf("====comp_dir %s\n", comp_dir);
                     if (phase == 1 && dest_dir && has_prefix ((char *)ptr, base_dir))
                         {
                         base_len = strlen (base_dir);
@@ -813,6 +813,9 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
 
                 name = (char *) debug_sections[DEBUG_STR].data
                        + do_read_32_relocated (ptr);
+                       
+                printf("====name %s\n", name);
+                
                 if (*name == '/' && comp_dir == NULL)
                     {
                     char *enddir = strrchr (name, '/');
