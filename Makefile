@@ -1,5 +1,5 @@
-CC=gcc
-CFLAGS=-lelf -lpopt -Wall
+CC?=gcc
+CFLAGS+=-lelf -lpopt -Wall
 SOURCES=debugedit.c hashtab.c
 OBJECTS=$(SOURCES:.c=.o)
 EXECUTABLE=debugedit
