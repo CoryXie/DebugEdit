@@ -21,10 +21,17 @@
 #define _FILE_OFFSET_BITS 64
 
 #include <assert.h>
+#if defined(__linux__)
 #include <byteswap.h>
 #include <endian.h>
+#endif
 #include <errno.h>
+#if !defined(__FreeBSD__)
 #include <error.h>
+#else
+#include <err.h>
+#define error(x, y, format, args...) errx(1, format, ## args)
+#endif
 #include <limits.h>
 #include <string.h>
 #include <stdlib.h>
@@ -45,6 +52,13 @@
 #define DW_FORM_exprloc 0x18
 #define DW_FORM_flag_present 0x19
 #define DW_FORM_ref_sig8 0x20
+
+#if !defined(R_390_32)
+#define R_390_32 0x04
+#endif
+#if !defined(R_IA64_SECREL32LSB)
+#define R_IA64_SECREL32LSB 0x65
+#endif
 
 char *base_dir = NULL;
 char *dest_dir = NULL;
