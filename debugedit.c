@@ -1538,14 +1538,14 @@ static struct poptOption optionsTable[] =
     };
 
 static DSO *
-fdopen_dso (int fd, const char *name)
+fdopen_dso (int fd, const char *name, int readonly)
     {
     Elf *elf = NULL;
     GElf_Ehdr ehdr;
     int i;
     DSO *dso = NULL;
 
-    elf = elf_begin (fd, ELF_C_RDWR, NULL);
+    elf = elf_begin (fd, (readonly == 0) ? ELF_C_RDWR : ELF_C_READ, NULL);
     if (elf == NULL)
         {
         error (0, 0, "cannot open ELF file: %s", elf_errmsg (-1));
@@ -1615,7 +1615,7 @@ int
 main (int argc, char *argv[])
     {
     DSO *dso;
-    int fd, i;
+    int fd, i, readonly;
     const char *file;
     poptContext optCon;   /* context for parsing command-line options */
     int nextopt;
@@ -1656,6 +1656,15 @@ main (int argc, char *argv[])
             fprintf (stderr, "Dest dir longer than base dir is not supported\n");
             exit (1);
             }
+        }
+
+    if (dest_dir == NULL && base_dir == NULL && win_path == 0)
+        {
+        readonly = 1;
+        }
+   else
+        {
+        readonly = 0;
         }
 
     /* Make sure there are trailing slashes in dirs */
@@ -1702,16 +1711,17 @@ main (int argc, char *argv[])
 
     /* Make sure we can read and write */
     
-    chmod (file, stat_buf.st_mode | S_IRUSR | S_IWUSR);
+    if (readonly == 0)
+       chmod (file, stat_buf.st_mode | S_IRUSR | S_IWUSR);
 
-    fd = open (file, O_RDWR);
+    fd = open (file, (readonly == 0) ? O_RDWR : O_RDONLY);
     if (fd < 0)
         {
         fprintf (stderr, "Failed to open input file '%s': %s\n", file, strerror(errno));
         exit (1);
         }
 
-    dso = fdopen_dso (fd, file);
+    dso = fdopen_dso (fd, file, readonly);
     if (dso == NULL)
         exit (1);
 
@@ -1742,7 +1752,7 @@ main (int argc, char *argv[])
             }
         }
 
-    if (elf_update (dso->elf, ELF_C_WRITE) < 0)
+    if (readonly == 0 && elf_update (dso->elf, ELF_C_WRITE) < 0)
         {
         fprintf (stderr, "Failed to write file: %s\n", elf_errmsg (elf_errno()));
         exit (1);
@@ -1757,7 +1767,8 @@ main (int argc, char *argv[])
     close (fd);
 
     /* Restore old access rights */
-    chmod (file, stat_buf.st_mode);
+    if (readonly == 0)
+        chmod (file, stat_buf.st_mode);
 
     poptFreeContext (optCon);
 
