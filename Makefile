@@ -6,7 +6,7 @@ EXECUTABLE=debugedit
 
 all: $(SOURCES) $(EXECUTABLE)
 clean: 
-	rm -f *.o *.exe
+	rm -f $(OBJECTS) *.exe $(EXECUTABLE)
 	
 $(EXECUTABLE): $(SOURCES)
 	$(CC) -o $@ $(SOURCES) $(CFLAGS) 
