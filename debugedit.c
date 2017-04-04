@@ -65,6 +65,7 @@ char *dest_dir = NULL;
 char *list_file = NULL;
 int win_path = 0;
 int list_file_fd = -1;
+int use_newline = 0;
 
 typedef struct
     {
@@ -496,6 +497,28 @@ void make_win_path(char * path)
     }
 
 static int
+append_list_file(char *p)
+    {
+    size_t size = strlen (p) + 1;
+    ssize_t ret;
+
+    ret = 0;
+    if (use_newline != 0)
+        p[size - 1] = '\n';
+    while (size > 0)
+        {
+        ret = write (list_file_fd, p, size);
+        if (ret == -1)
+            break;
+        size -= ret;
+        p += ret;
+    }
+    if (use_newline != 0)
+        p[size - 1] = '\0';
+    return (ret < 0 ? -1 : 0);
+    }
+
+static int
 edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
     {
     unsigned char *ptr = debug_sections[DEBUG_LINE].data, *dir;
@@ -670,15 +693,7 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
 
             if (p)
                 {
-                size_t size = strlen (p) + 1;
-                while (size > 0)
-                    {
-                    ssize_t ret = write (list_file_fd, p, size);
-                    if (ret == -1)
-                        break;
-                    size -= ret;
-                    p += ret;
-                    }
+                append_list_file(p);
                 }
             }
 
@@ -1090,15 +1105,7 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
         else
             p = comp_dir;
 
-        size = strlen (p) + 1;
-        while (size > 0)
-            {
-            ssize_t ret = write (list_file_fd, p, size);
-            if (ret == -1)
-                break;
-            size -= ret;
-            p += ret;
-            }
+        append_list_file(p);
         }
 
     if (found_list_offs && comp_dir)
@@ -1532,6 +1539,10 @@ static struct poptOption optionsTable[] =
         {
         "win-path",  'w', POPT_ARG_NONE, &win_path, 0,
         "change the path delimiter to be Windows compatible", NULL
+        },
+        {
+        "use-newline",  'n', POPT_ARG_NONE, &use_newline, 0,
+        "separate strings in the list file with \\n, not \\0", NULL
         },
     POPT_AUTOHELP
         { NULL, 0, 0, NULL, 0, NULL, NULL }
