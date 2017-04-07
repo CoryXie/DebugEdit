@@ -66,6 +66,9 @@ char *list_file = NULL;
 int win_path = 0;
 int list_file_fd = -1;
 int use_newline = 0;
+int list_only_files = 0;
+FILE *debug_fd;
+int be_quiet = 0;
 
 typedef struct
     {
@@ -496,12 +499,17 @@ void make_win_path(char * path)
         }
     }
 
+#define LST_FILE 0
+#define LST_DIR 1
+
 static int
-append_list_file(char *p)
+append_list_file(char *p, int type)
     {
     size_t size = strlen (p) + 1;
     ssize_t ret;
 
+    if (list_only_files != 0 && type != LST_FILE)
+        return (0);
     ret = 0;
     if (use_newline != 0)
         p[size - 1] = '\n';
@@ -677,7 +685,7 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
             memcpy (p + dir_len + 1, file, file_len + 1);
             }
         
-        printf("@@@@linedirt[%d] %s\n", value, dirt[value]);
+        fprintf(debug_fd, "@@@@linedirt[%d] %s\n", value, dirt[value]);
         
         canonicalize_path (s, s);
                 
@@ -693,7 +701,7 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
 
             if (p)
                 {
-                append_list_file(p);
+                append_list_file(p, LST_FILE);
                 }
             }
 
@@ -733,7 +741,7 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
 
             char *orig = strdup ((const char *) srcptr);
             
-            printf("####linesrcptr %s\n", srcptr);
+            fprintf(debug_fd, "####linesrcptr %s\n", srcptr);
 
             if (*srcptr == '/' && has_prefix ((char *)srcptr, base_dir))
                 {
@@ -792,7 +800,7 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
             {
             size_t len = strlen ((char *)srcptr) + 1;
 
-            printf("@@@@line srcptr %s\n", srcptr);
+            fprintf(debug_fd, "@@@@line srcptr %s\n", srcptr);
             
             if (*srcptr == '/' && has_prefix ((char *)srcptr, base_dir))
                 {
@@ -864,14 +872,14 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
                     free (comp_dir);
                     comp_dir = strdup ((char *)ptr);
                     
-                    printf("####1comp_dir %s\n", comp_dir);
+                    fprintf(debug_fd, "####1comp_dir %s\n", comp_dir);
                     
                     if (phase == 1 && dest_dir && has_prefix ((char *)ptr, base_dir))
                         {
                         base_len = strlen (base_dir);
                         dest_len = strlen (dest_dir);
                         
-                        printf("####1updating base from %s to %s\n", base_dir, dest_dir);
+                        fprintf(debug_fd, "####1updating base from %s to %s\n", base_dir, dest_dir);
 
                         memcpy (ptr, dest_dir, dest_len);
                         if (dest_len < base_len)
@@ -898,14 +906,14 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
                     free (comp_dir);
                     comp_dir = strdup (dir);
 
-                    printf("####2comp_dir %s\n", comp_dir);
+                    fprintf(debug_fd, "####2comp_dir %s\n", comp_dir);
 
                     if (phase == 1 && dest_dir && has_prefix (dir, base_dir))
                         {
                         base_len = strlen (base_dir);
                         dest_len = strlen (dest_dir);
 
-                        printf("####2updating base from %s to %s\n", base_dir, dest_dir);
+                        fprintf(debug_fd, "####2updating base from %s to %s\n", base_dir, dest_dir);
 
                         memcpy (dir, dest_dir, dest_len);
                         if (dest_len < base_len)
@@ -933,7 +941,7 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
                     name = (char *)(ptr);
                     }
 
-                printf("====name %s\n", name);
+                fprintf(debug_fd, "====name %s\n", name);
                 
                 /* 
                  * If the compile unit has full path from root '/',
@@ -977,7 +985,7 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
                     base_len = strlen (base_dir);
                     dest_len = strlen (dest_dir);
                     
-                    printf("====updating base from %s to %s\n", base_dir, dest_dir);
+                    fprintf(debug_fd, "====updating base from %s to %s\n", base_dir, dest_dir);
                     
                     memcpy (name, dest_dir, dest_len);
                     
@@ -1096,7 +1104,6 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
     if (comp_dir && list_file_fd != -1)
         {
         char *p;
-        size_t size;
 
         if (base_dir && has_prefix (comp_dir, base_dir))
             p = comp_dir + strlen (base_dir);
@@ -1105,7 +1112,7 @@ edit_attributes (DSO *dso, unsigned char *ptr, struct abbrev_tag *t, int phase)
         else
             p = comp_dir;
 
-        append_list_file(p);
+        append_list_file(p, LST_DIR);
         }
 
     if (found_list_offs && comp_dir)
@@ -1153,14 +1160,14 @@ edit_symtab (DSO *dso, Elf_Data *data)
 
         if (GELF_ST_TYPE(sym.st_info) == STT_FILE)
             {
-            printf("file %s\n", s);
+            fprintf(debug_fd, "file %s\n", s);
             
             if (dest_dir && has_prefix (s, base_dir))
                 {
                 int base_len = strlen (base_dir);
                 int dest_len = strlen (dest_dir);
             
-                printf("!!!!updating symbol file base from %s to %s\n", base_dir, dest_dir);
+                fprintf(debug_fd, "!!!!updating symbol file base from %s to %s\n", base_dir, dest_dir);
             
                 memcpy (s, dest_dir, dest_len);
                 if (dest_len < base_len)
@@ -1176,7 +1183,7 @@ edit_symtab (DSO *dso, Elf_Data *data)
             }
         else
             {
-            printf("symbol %s\n", s);
+            fprintf(debug_fd, "symbol %s\n", s);
             }
         }
     }
@@ -1260,14 +1267,14 @@ edit_dwarf2 (DSO *dso)
                         {
                         debug_sections[j].relsec = i;
                         
-                        printf("Relocation section %d name %s\n", i, name);
+                        fprintf(debug_fd, "Relocation section %d name %s\n", i, name);
                         
                         break;
                         }
                 }
             else if (strncmp (name, ".symtab", sizeof (".symtab") - 1) == 0)
                 {
-                printf("########.symtab sec %d\n", i);
+                fprintf(debug_fd, "########.symtab sec %d\n", i);
                 scn = dso->scn[i];
                 data = elf_getdata (scn, NULL);
                 debug_sections[DEBUG_SYMTAB].data = data->d_buf;
@@ -1418,7 +1425,7 @@ fail:
 
         for (phase = 0; phase < 2; phase++)
             {
-            printf("@@@###@@@phase %d@@@###@@@\n", phase);
+            fprintf(debug_fd, "@@@###@@@phase %d@@@###@@@\n", phase);
             
             ptr = debug_sections[DEBUG_INFO].data;
             relptr = relbuf;
@@ -1544,6 +1551,14 @@ static struct poptOption optionsTable[] =
         "use-newline",  'n', POPT_ARG_NONE, &use_newline, 0,
         "separate strings in the list file with \\n, not \\0", NULL
         },
+        {
+        "files-only", 'f', POPT_ARG_NONE, &list_only_files, 0,
+        "do not include directories into the list file", NULL
+        },
+        {
+        "quiet", 'q', POPT_ARG_NONE, &be_quiet, 0,
+        "quiet mode, do  not write anything to standard output", NULL
+        },
     POPT_AUTOHELP
         { NULL, 0, 0, NULL, 0, NULL, NULL }
     };
@@ -1634,6 +1649,7 @@ main (int argc, char *argv[])
     struct stat stat_buf;
     char *p;
 
+    debug_fd = stdout;
     optCon = poptGetContext("debugedit", argc, (const char **)argv, optionsTable, 0);
 
     while ((nextopt = poptGetNextOpt (optCon)) > 0 || nextopt == POPT_ERROR_BADOPT)
@@ -1653,6 +1669,16 @@ main (int argc, char *argv[])
         {
         poptPrintHelp(optCon, stdout, 0);
         exit (1);
+        }
+
+    if (be_quiet != 0)
+        {
+        debug_fd = fopen("/dev/null", "w");
+        if (debug_fd == NULL)
+            {
+            fprintf (stderr, "Can't open /dev/null\n");
+            exit (1);
+            }
         }
 
     if (dest_dir != NULL)
@@ -1741,7 +1767,7 @@ main (int argc, char *argv[])
         const char *name;
         name = strptr (dso, dso->ehdr.e_shstrndx, dso->shdr[i].sh_name);
         
-        printf ("sh:%d, sh_type: %d, sh_name: %s\n", i, dso->shdr[i].sh_type, name);
+        fprintf (debug_fd, "sh:%d, sh_type: %d, sh_name: %s\n", i, dso->shdr[i].sh_type, name);
         
         switch (dso->shdr[i].sh_type)
             {
