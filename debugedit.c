@@ -650,6 +650,11 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
                    dso->filename, value);
             return 1;
             }
+
+        /* GCC emits those it seems sometimes */
+        if (strcmp(file, "<built-in>") == 0)
+            goto skip;
+
         file_len = strlen (file);
         dir_len = strlen ((char *)dirt[value]);
         s = malloc (comp_dir_len + 1 + file_len + 1 + dir_len + 1);
@@ -710,6 +715,7 @@ edit_dwarf2_line (DSO *dso, uint32_t off, char *comp_dir, int phase)
 
         free (s);
 
+skip:
         read_uleb128 (ptr);
         read_uleb128 (ptr);
         }
